@@ -38,7 +38,9 @@ import {
   useUserStore
 } from "../index"
 import { DateTime } from "luxon"
-import { getAppLoginUrl } from "src/utils";
+import { createShopifyAppBridge, getAppLoginUrl, getSessionTokenFromShopify } from "src/utils";
+import { api } from "@hotwax/oms-api"
+import { client } from "@hotwax/oms-api";
 declare var process: any;
 
 const authStore = useAuthStore()
@@ -55,10 +57,46 @@ onMounted(async () => {
     return
   }
 
-  const { token, oms, expirationTime, omsRedirectionUrl, isEmbedded, shop, host} = route.query
-  // Update the flag in auth, since the store is updated app login url will be embedded luanchpad's url.
-  const isEmbeddedFlag = isEmbedded === 'true'
-  await handleUserFlow(token, oms, expirationTime, omsRedirectionUrl, isEmbeddedFlag, shop, host)
+  const { token, oms, expirationTime, omsRedirectionUrl, embedded, shop, host} = route.query
+  console.log("This is route and it's query: ", route, " and. ", route.query);
+  const isEmbedded = embedded === '1' ? true : false;
+
+  if (isEmbedded) {
+    const appBridgeConfig = await createShopifyAppBridge(shop, host);
+    console.log("This is app bridge config : ", appBridgeConfig);
+    const shopifySessionToken = await getSessionTokenFromShopify(appBridgeConfig);
+    console.log("This is Shopify Session Token: ", shopifySessionToken);
+
+    const appState: any = await appBridgeConfig.getState();
+    // Since the Shopify Admin doesn't provide location and user details,
+    // we are using the app state to get the POS location and user details in case of POS Embedded Apps.
+    const loginPayload = {
+      sessionToken: shopifySessionToken,
+      locationId: appState.pos?.location?.id,
+      firstName: appState.pos?.user?.firstName,
+      lastName: appState.pos?.user?.lastName
+    }
+
+    const baseURL = JSON.parse(process.env.VUE_APP_SHOPIFY_SHOP_CONFIG)[shop].maarg;
+    console.log("This is maarg url: ", baseURL)
+    const loginResponse = await client({
+      url: "/rest/s1/app-bridge/login",
+      method: "post",
+      baseURL,
+      data: loginPayload
+    });
+
+    if (loginResponse?.data && loginResponse.data.token) {
+      const loginToken = loginResponse.data.token;
+      const omsInstanceUrl = loginResponse.data.omsInstanceUrl;
+      const expiresAt = loginResponse.data.expiresAt;
+
+      await handleUserFlow(loginToken, omsInstanceUrl, expiresAt, baseURL, isEmbedded, shop, host);
+    }
+  } else {
+    // Update the flag in auth, since the store is updated app login url will be embedded luanchpad's url.
+    await handleUserFlow(token, oms, expirationTime, omsRedirectionUrl, isEmbedded, shop, host);
+  }
 });
 
 async function handleUserFlow(token: string, oms: string, expirationTime: string, omsRedirectionUrl = "", isEmbedded: boolean, shop: string, host: string) {
