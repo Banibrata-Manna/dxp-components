@@ -5,7 +5,8 @@ import DxpGitBookSearch from "../components/DxpGitBookSearch.vue";
 import { computed, ref } from "vue";
 import createApp from "@shopify/app-bridge";
 import { getSessionToken } from "@shopify/app-bridge-utils";
-import { Scanner, Features, Group } from '@shopify/app-bridge/actions';
+import { Scanner, Features, Group, Redirect } from '@shopify/app-bridge/actions';
+import { client } from "@hotwax/oms-api";
 
 declare var process: any;
 
@@ -142,6 +143,68 @@ const openPosScanner = async () => {
   }
 }
 
+const getPackingSlipUrl = async (): Promise<any> => {
+  try {
+    const authStore = useAuthStore();
+    const omstoken = authStore.token.value;
+
+    console.log("This is auth state right now", omstoken);
+
+
+
+    // Get packing slip from the server
+    const resp = await client({
+      url: "/fop/apps/pdf/PrintPackingSlip",
+      method: "GET",
+      baseURL: 'https://dev-maarg.hotwax.io',
+      headers: {
+        "Authorization": "Bearer " + omstoken,
+        "Content-Type": "application/json"
+      },
+      params: {
+        shipmentId: ["13099"]
+      },
+      responseType: "blob"
+    });
+
+
+    if (!resp || resp.status !== 200) {
+      throw resp.data
+    }
+
+    // Generate local file URL for the blob received
+    const pdfUrl = window.URL.createObjectURL(resp.data);
+
+    console.log("This is pdf url: ", pdfUrl);
+
+    const apiKey = JSON.parse(process.env.VUE_APP_SHOPIFY_SHOP_CONFIG)[authStore.shop].apiKey;  
+    const shopifyAppBridgeConfig = {
+      apiKey: apiKey || '',
+      host: authStore.host || '',
+      forceRedirect: true,
+    };
+
+    console.log("This is app config: ", shopifyAppBridgeConfig);
+
+    const appBridge = createApp(shopifyAppBridgeConfig);
+
+    console.log("This is the app config", appBridge)
+
+    const redirect = Redirect.create(appBridge);
+
+    redirect.dispatch(Redirect.Action.REMOTE, {
+      url: pdfUrl,
+      newContext: true,
+    });
+
+    console.log("This is the end.")
+
+  } catch (err) {
+    showToast(translate('Failed to print packing slip'))
+    console.error("Failed to load packing slip", err)
+  }
+}
+
 export {
   getCurrentTime,
   getProductIdentificationValue,
@@ -150,5 +213,6 @@ export {
   getAppLoginUrl,
   createShopifyAppBridge,
   getSessionTokenFromShopify,
-  openPosScanner
+  openPosScanner,
+  getPackingSlipUrl
 }

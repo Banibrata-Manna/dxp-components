@@ -77,6 +77,8 @@ onMounted(async () => {
       lastName: appState.pos?.user?.lastName
     }
 
+    console.log("***********This is login payload: ", loginPayload);
+
     const baseURL = JSON.parse(process.env.VUE_APP_SHOPIFY_SHOP_CONFIG)[shop].maarg;
     console.log("This is maarg url: ", baseURL)
     const loginResponse = await client({
@@ -87,6 +89,9 @@ onMounted(async () => {
     });
 
     if (loginResponse?.data && loginResponse.data.token) {
+
+      console.log("This is login response : ", loginResponse.data);
+
       const loginToken = loginResponse.data.token;
       const omsInstanceUrl = loginResponse.data.omsInstanceUrl;
       const expiresAt = loginResponse.data.expiresAt;
