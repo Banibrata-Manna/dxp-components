@@ -6,7 +6,6 @@ import { computed, ref } from "vue";
 import createApp from "@shopify/app-bridge";
 import { getSessionToken } from "@shopify/app-bridge-utils";
 import { Scanner, Features, Group, Redirect } from '@shopify/app-bridge/actions';
-import { client } from "@hotwax/oms-api";
 
 declare var process: any;
 
@@ -106,18 +105,26 @@ const getSessionTokenFromShopify = async (appBridgeConfig: any) => {
   }
 }
 
-const openPosScanner = async () => {
+const openPosScanner = async (): Promise<any> => {
+  let scanData = undefined;
   try {
     const authStore = useAuthStore();
-    const appBridgeConfig = await createShopifyAppBridge(authStore.shop, authStore.host);
+    const app = authStore.shopifyAppBridge;
 
-    const scanner = Scanner.create(appBridgeConfig);
+    const scanner = Scanner.create(app);
 
     console.log("This is Scanner", scanner);
 
-    const features = Features.create(appBridgeConfig);
+    const features = Features.create(app);
 
     console.log("These are features: ", features);
+
+    scanner.subscribe(Scanner.Action.CAPTURE, 
+      function (payload) {
+        scanData = payload?.scanData;
+        console.log("This is scanned Value: ", scanData);
+      }
+    )
 
     // Subscribe to the update action (triggered when the permission dialog is interacted with)
     features.subscribe(Features.Action.REQUEST_UPDATE, function (payload) {
@@ -140,69 +147,9 @@ const openPosScanner = async () => {
     });
   } catch(error) {
     console.log("Error: ", error);
+    return Promise.reject(error);
   }
-}
-
-const getPackingSlipUrl = async (): Promise<any> => {
-  try {
-    const authStore = useAuthStore();
-    const omstoken = authStore.token.value;
-
-    console.log("This is auth state right now", omstoken);
-
-
-
-    // Get packing slip from the server
-    const resp = await client({
-      url: "/fop/apps/pdf/PrintPackingSlip",
-      method: "GET",
-      baseURL: 'https://dev-maarg.hotwax.io',
-      headers: {
-        "Authorization": "Bearer " + omstoken,
-        "Content-Type": "application/json"
-      },
-      params: {
-        shipmentId: ["13099"]
-      },
-      responseType: "blob"
-    });
-
-
-    if (!resp || resp.status !== 200) {
-      throw resp.data
-    }
-
-    // Generate local file URL for the blob received
-    const pdfUrl = window.URL.createObjectURL(resp.data);
-
-    console.log("This is pdf url: ", pdfUrl);
-
-    const apiKey = JSON.parse(process.env.VUE_APP_SHOPIFY_SHOP_CONFIG)[authStore.shop].apiKey;  
-    const shopifyAppBridgeConfig = {
-      apiKey: apiKey || '',
-      host: authStore.host || '',
-      forceRedirect: true,
-    };
-
-    console.log("This is app config: ", shopifyAppBridgeConfig);
-
-    const appBridge = createApp(shopifyAppBridgeConfig);
-
-    console.log("This is the app config", appBridge)
-
-    const redirect = Redirect.create(appBridge);
-
-    redirect.dispatch(Redirect.Action.REMOTE, {
-      url: pdfUrl,
-      newContext: true,
-    });
-
-    console.log("This is the end.")
-
-  } catch (err) {
-    showToast(translate('Failed to print packing slip'))
-    console.error("Failed to load packing slip", err)
-  }
+  return Promise.resolve(scanData);
 }
 
 export {
@@ -214,5 +161,4 @@ export {
   createShopifyAppBridge,
   getSessionTokenFromShopify,
   openPosScanner,
-  getPackingSlipUrl
 }
