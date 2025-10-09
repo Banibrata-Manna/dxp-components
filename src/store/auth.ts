@@ -29,6 +29,7 @@ export const useAuthStore = defineStore('userAuth', {
       return "";
     },
     isAuthenticated: (state) => {
+      console.log("************************* This is is auth **************************");
       let isTokenExpired = false
       if (state.token.expiration) {
         const currTime = DateTime.now().toMillis()

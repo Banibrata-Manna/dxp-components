@@ -1,22 +1,24 @@
 <template>
-  <ion-content>
-    <div class="center-div">
-      <ion-item lines="none" v-if='error.message.length'>
-        <ion-icon slot="start" color="warning" :icon="warningOutline" />
-        <h4>{{ $t('Login failed') }}</h4>
-      </ion-item>
-      <p v-if='error.responseMessage.length'>
-        {{ $t('Reason:') }} {{ $t(error.responseMessage) }}
-      </p>
-      <p v-if='error.message.length'>
-        {{ $t(error.message) }}
-      </p>
-      <ion-button v-if='error.message.length' class="ion-margin-top" @click="goToLaunchpad()">
-        <ion-icon slot="start" :icon="arrowBackOutline" />
-        {{ $t("Back to Launchpad") }}
-      </ion-button>
-    </div>
-  </ion-content>
+  <ion-page>
+    <ion-content>
+      <div class="center-div">
+        <ion-item lines="none" v-if='error.message.length'>
+          <ion-icon slot="start" color="warning" :icon="warningOutline" />
+          <h4>{{ $t('Login failed') }}</h4>
+        </ion-item>
+        <p v-if='error.responseMessage.length'>
+          {{ $t('Reason:') }} {{ $t(error.responseMessage) }}
+        </p>
+        <p v-if='error.message.length'>
+          {{ $t(error.message) }}
+        </p>
+        <ion-button v-if='!authStore.isEmbedded && error.message.length' class="ion-margin-top" @click="goToLaunchpad()">
+          <ion-icon slot="start" :icon="arrowBackOutline" />
+          {{ $t("Back to Launchpad") }}
+        </ion-button>
+      </div>
+    </ion-content>
+  </ion-page>
 </template>
 
 <script setup lang="ts">
@@ -25,7 +27,8 @@ import {
   IonButton,
   IonContent,
   IonIcon,
-  IonItem
+  IonItem,
+  IonPage
 } from "@ionic/vue";
 import { arrowBackOutline, warningOutline } from 'ionicons/icons'
 import { initialiseFirebaseApp } from "../utils/firebase"
